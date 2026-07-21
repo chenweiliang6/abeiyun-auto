@@ -1,13 +1,22 @@
 name: postpone-cloud
 
-# 阿贝云免费服务器自动续期（简化版）—— 每 5 天用固定掘金网址 + 仓库内固定图片提交
+# 阿贝云免费服务器自动续期（简化版）—— 从起始日起每 5 天用固定掘金网址 + 仓库内固定图片提交
+#
+# 实现说明：
+#   GitHub Actions 的 schedule.cron 没有“年”、也无法跨月严格表达“每 5 天”，
+#   所以这里让 workflow 每天北京时间 11:00（= UTC 03:00）触发，
+#   再由第一个 step 用日期脚本判断“今天与起始日(START_DATE)的天数差是否为 5 的整数倍”，
+#   是才真正执行续期，否则静默退出。这样起始日起严格每 5 天一次（7/21, 7/26, 7/31, 8/5, …）。
+#
+#   起始日 : 2026-07-21（北京时间）
+#   执行点 : 每天北京 11:00 触发；仅差值 % 5 == 0 当天执行
+#   schedule 仅在默认分支生效、且 GitHub 不保证准时（高峰可能延迟数十分钟），故保留 workflow_dispatch 手动补跑/验证。
+#
+#   手动触发(workflow_dispatch) 绕过日期门控，无论今天是否满 5 天都会执行——用于补跑与验证。
 on:
   schedule:
-    # 每 5 天 UTC 00:00（≈北京 08:00）跑一次。
-    # GitHub Actions 的 cron 无法精确表达“每 5 天”，这里用每月 1/6/11/16/21/26 日近似；
-    # 跨月最多差 1 天，对续期（容迟）无影响。schedule 仅在默认分支生效、且不保证准时，故保留下方手动触发。
-    - cron: '0 0 1,6,11,16,21,26 * *'
-  workflow_dispatch: # 手动触发（补跑 / 验证）
+    - cron: '0 3 * * *'   # 每天 UTC 03:00 = 北京时间 11:00
+  workflow_dispatch:       # 手动触发（补跑 / 验证）：不受日期门控限制，随时可跑
 
 # 同一时间只允许一个实例运行；不取消已在进行的续期
 concurrency:
@@ -22,24 +31,58 @@ jobs:
     # if: github.repository == 'OWNER/REPO'
 
     steps:
+      # 日期门控：仅 schedule 触发时判断“今天是否距起始日满 5 天的整数倍”，不是则静默退出。
+      # 手动 workflow_dispatch 触发时 GITHUB_EVENT_NAME=workflow_dispatch，直接放行。
+      - name: 日期门控（从起始日起每 5 天）
+        run: |
+          START_DATE="2026-07-21"
+          # GitHub schedule 触发时间用 UTC；这里按北京时间(UTC+8)计算“今天”，
+          # 让“7/21 北京 11:00 触发时”确实落在 7/21 当天。
+          TZ_OFFSET_HOURS=8
+          TODAY_BJ=$(TZ="Asia/Shanghai" date +%Y-%m-%d)
+          echo "起始日: $START_DATE"
+          echo "今天(北京): $TODAY_BJ"
+          # 天数差（按日历日，忽略时区内的时分秒）
+          DAYS=$(( ($(date -d "$TODAY_BJ" +%s) - $(date -d "$START_DATE" +%s)) / 86400 ))
+          echo "距起始日天数: $DAYS"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "::notice::手动触发，跳过日期门控，直接执行"
+          elif [ "$(( DAYS % 5 ))" -ne 0 ] || [ "$DAYS" -lt 0 ]; then
+            echo "::notice::今天距起始日 $DAYS 天，非 5 的整数倍（或早于起始日），本轮不执行续期"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            echo "::notice::今天距起始日满 $DAYS 天（5 的整数倍），执行续期"
+          fi
+        id: gate
+
+      - name: 跳过（今天非执行日）
+        if: steps.gate.outputs.skip == 'true'
+        run: echo "今天不是执行日，workflow 静默退出"
+
       - name: Checkout
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/checkout@v4
 
       - name: Setup JDK 17
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Setup Maven
+        if: steps.gate.outputs.skip != 'true'
         uses: stCarolas/setup-maven@v5
         with:
           maven-version: 3.9.9
 
       - name: 准备可写工作目录
+        if: steps.gate.outputs.skip != 'true'
         run: mkdir -p /home/runner/freeServer/resource
 
       - name: 用 Secrets 覆盖 application-config.yml
+        if: steps.gate.outputs.skip != 'true'
         working-directory: postpone
         run: |
           cat > src/main/resources/application-config.yml <<'YAML'
@@ -66,10 +109,12 @@ jobs:
         # 注意：here-doc 正文与闭合标记 YAML 必须顶格（无前导空格），否则 bash 不识别闭合标记。
 
       - name: 构建（跳过测试）
+        if: steps.gate.outputs.skip != 'true'
         working-directory: postpone
         run: mvn -B clean package -DskipTests
 
       - name: 运行 oneshot 续期
+        if: steps.gate.outputs.skip != 'true'
         working-directory: postpone
         run: |
           set -o pipefail
@@ -80,7 +125,7 @@ jobs:
             2>&1 | tee postpone-run.log
 
       - name: 校验运行结果
-        if: always()
+        if: always() && steps.gate.outputs.skip != 'true'
         working-directory: postpone
         run: |
           # 成功标志
@@ -98,7 +143,7 @@ jobs:
           fi
 
       - name: 上传运行日志（便于排查）
-        if: always()
+        if: always() && steps.gate.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: postpone-run-log
