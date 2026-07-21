@@ -52,12 +52,6 @@ jobs:
               password: "${{ secrets.CLOUD_SERVER_1_PASSWORD }}"
               type: ${{ secrets.CLOUD_SERVER_1_TYPE }}
               enable: ${{ secrets.CLOUD_SERVER_1_ENABLE }}
-          mailInfo:
-            serverHost: smtp.qq.com
-            serverPort: 465
-            username: "${{ secrets.MAIL_USERNAME }}"
-            password: "${{ secrets.MAIL_AUTH_CODE }}"
-            receiveUser: "${{ secrets.MAIL_RECEIVE_USER }}"
           blogInfo:
             uri: git@github.com:placeholder/placeholder.github.io.git
             localPath: /home/runner/freeServer/repo

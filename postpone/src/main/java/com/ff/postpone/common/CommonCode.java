@@ -6,7 +6,6 @@ import com.alibaba.fastjson2.JSONObject;
 import com.ff.postpone.constant.*;
 import com.ff.postpone.util.HttpUtil;
 import com.ff.postpone.util.JSONUtils;
-import com.ff.postpone.util.MailUtil;
 import com.ff.postpone.util.YamlUtil;
 import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
@@ -84,7 +83,7 @@ public class CommonCode {
      * @param ukLog 用户日志key
      * @throws Exception
      */
-    public static void checkCheckStatus(JSONObject json, String ukLog, String blogUrl, MailUtil mailUtil) throws Exception {
+    public static void checkCheckStatus(JSONObject json, String ukLog, String blogUrl) throws Exception {
 
         json = JSONUtils.getObject(json, CloudDataKey.CHECK_MSG);
 
@@ -94,7 +93,6 @@ public class CommonCode {
             json = array.getJSONObject(0);
             String state = json.getString(CloudDataKey.CHECK_STATUS);
             String url = json.getString(CloudDataKey.CHECK_URL);
-            boolean delete = false;
 
             if(blogUrl!=null && blogUrl.equals(url)){
                 switch (state) {
@@ -102,18 +100,12 @@ public class CommonCode {
                         log.info("{}审核中,无需审核!!!", ukLog);
                         break;
                     case CloudDataKey.CHECK_SUCCESS:
-                        delete = true;
                         log.info("{}审核通过!!!", ukLog);
-                        mailUtil.sendMail(ukLog+"审核通过","审核通过");
                         break;
                     default:
-                        delete = true;
                         log.info("{}审核失败,审核结果:{}", ukLog, state);
-                        mailUtil.sendMail(ukLog+"审核失败",state);
                 }
             }
-            //删除博客
-            if(delete) BlogGit.deleteBlog(blogUrl);
 
         }else{
             log.info("没有延期记录!!!");

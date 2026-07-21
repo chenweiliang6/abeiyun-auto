@@ -30,12 +30,7 @@ public class Profile implements CommandLineRunner{
      */
     public static Map<String, Map<String, String>> userInfos;
 
-    //邮箱 配置
-    public static String MAIL_SERVER_HOST;
-    public static Integer MAIL_SERVER_PORT;
-    public static String MAIL_USERNAME;
-    public static String MAIL_PASSWORD;
-    public static String MAIL_RECEIVE_USER;
+    //邮箱配置已移除 —— 失败通知改由 GitHub Actions step 失败邮件承担
 
     //博客 配置
     public static String BLOG_URI;
@@ -70,31 +65,6 @@ public class Profile implements CommandLineRunner{
 
     public void setUserInfos(Map<String, Map<String, String>> userInfos) {
         Profile.userInfos = userInfos;
-    }
-
-    @Value("${mailInfo.serverHost}")
-    public void setMailServerHost(String mailServerHost) {
-        MAIL_SERVER_HOST = mailServerHost;
-    }
-
-    @Value("${mailInfo.serverPort}")
-    public void setMailServerPort(Integer mailServerPort) {
-        MAIL_SERVER_PORT = mailServerPort;
-    }
-
-    @Value("${mailInfo.password}")
-    public void setMailPassword(String mailPassword) {
-        MAIL_PASSWORD = mailPassword;
-    }
-
-    @Value("${mailInfo.username}")
-    public void setMailUsername(String mailUsername) {
-        MAIL_USERNAME = mailUsername;
-    }
-
-    @Value("${mailInfo.receiveUser}")
-    public void setMailReceiveUser(String mailReceiveUser) {
-        MAIL_RECEIVE_USER = mailReceiveUser;
     }
 
     @Value("${blogInfo.uri}")

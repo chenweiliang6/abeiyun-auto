@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 @DisallowConcurrentExecution
 public class Postpone extends QuartzJobBean {
@@ -41,57 +40,47 @@ public class Postpone extends QuartzJobBean {
 
     public void postpone() {
         List<Map<String, String>> cloudServers = Profile.cloudServers;
-        MailUtil mailUtil = initializeMailUtil();
 
         for (Map<String, String> serverInfo : cloudServers) {
             try {
-                processCloudServer(serverInfo, mailUtil);
+                processCloudServer(serverInfo);
             } catch (Exception e) {
                 log.error("服务器延期过程出错", e);
-                handleException(serverInfo, e, mailUtil);
+                handleException(serverInfo, e);
             }
         }
     }
 
-    private MailUtil initializeMailUtil() {
-        return MailUtil.MailUtilBuilder.getBuilder()
-                .setHost(Profile.MAIL_SERVER_HOST)
-                .setPort(Profile.MAIL_SERVER_PORT)
-                .setPassword(Profile.MAIL_PASSWORD)
-                .setUsername(Profile.MAIL_USERNAME)
-                .setReceiveUser(Profile.MAIL_RECEIVE_USER)
-                .build();
-    }
-
-    private void processCloudServer(Map<String, String> serverInfo, MailUtil mailUtil) throws Exception {
-        BasicCookieStore cookieStore = new BasicCookieStore();
-        HttpClient httpClient = HttpUtil.getHttpClient(cookieStore);
-        Map<String, String> cookieMap = new LinkedHashMap<>();
-
+    private void processCloudServer(Map<String, String> serverInfo) throws Exception {
         String username = serverInfo.get(Constans.CLOUD_USERNAME);
         String type = serverInfo.get(Constans.CLOUD_TYPE);
         boolean enable = Boolean.parseBoolean(serverInfo.get(Constans.ENABLE));
 
         CloudInfo cloudInfo = CloudInfo.getCloudInfo(type);
-        String cloudName = Objects.requireNonNull(cloudInfo).getCloudName();
-        String ukLog = CommonCode.getUKLog(username, cloudName);
-        String uKey = CommonCode.getUserKey(username, type);
-
-        if (!enable) {
+        if (!enable || cloudInfo == null) {
+            // 未启用，或 type 为空/非法（如对应 secret 未配置）时直接跳过，避免 NPE
+            String cloudName = cloudInfo != null ? cloudInfo.getCloudName() : ("type=" + (type == null ? "" : type));
             log.warn("{}未启用，已跳过", cloudName);
             return;
         }
 
-        String status = loginAndCheck(httpClient, cookieStore, cookieMap, mailUtil, serverInfo, cloudInfo, ukLog, uKey);
+        String cloudName = cloudInfo.getCloudName();
+        String ukLog = CommonCode.getUKLog(username, cloudName);
+        String uKey = CommonCode.getUserKey(username, type);
+
+        BasicCookieStore cookieStore = new BasicCookieStore();
+        HttpClient httpClient = HttpUtil.getHttpClient(cookieStore);
+        Map<String, String> cookieMap = new LinkedHashMap<>();
+
+        String status = loginAndCheck(httpClient, cookieStore, cookieMap, serverInfo, cloudInfo, ukLog, uKey);
         if ("1".equals(status)) {
-            executeDelayProcess(httpClient, cookieStore, cookieMap, mailUtil, cloudInfo, ukLog, username, cloudName);
+            executeDelayProcess(httpClient, cookieStore, cookieMap, cloudInfo, ukLog, username, cloudName);
         }
     }
 
     public String loginAndCheck(HttpClient httpClient,
                                 BasicCookieStore cookieStore,
                                 Map<String, String> cookieMap,
-                                MailUtil mailUtil,
                                 Map<String, String> serverInfo,
                                 CloudInfo cloudInfo,
                                 String ukLog,
@@ -107,7 +96,7 @@ public class Postpone extends QuartzJobBean {
 
         if (StringUtil.isEmpty(nextTime) || CommonCode.isExpire(nextTime)) {
             log.info("{}开始登录...", ukLog);
-            return performLoginAndCheck(httpClient, cookieStore, cookieMap, mailUtil, username, password,
+            return performLoginAndCheck(httpClient, cookieStore, cookieMap, username, password,
                     cloudInfo, cloudName, type, ukLog, uKey, userInfo);
         } else {
             log.info("{}未到期", ukLog);
@@ -125,7 +114,7 @@ public class Postpone extends QuartzJobBean {
 
     private String performLoginAndCheck(HttpClient httpClient, BasicCookieStore cookieStore,
                                         Map<String, String> cookieMap,
-                                        MailUtil mailUtil, String username, String password,
+                                        String username, String password,
                                         CloudInfo cloudInfo, String cloudName, String type,
                                         String ukLog, String uKey, Map<String, String> userInfo) throws Exception {
 
@@ -133,8 +122,7 @@ public class Postpone extends QuartzJobBean {
                 username, password, ukLog);
 
         if (!CloudDataKey.LOGIN_SUCCESS.equals(loginJson.getString(CloudDataKey.LOGIN_STATUS))) {
-            log.warn("{}登录失败", ukLog);
-            mailUtil.sendMail(cloudName + "账号：" + username + ", 登录失败", loginJson.toString());
+            log.error("{}登录失败", ukLog);
             return null;
         }
 
@@ -154,7 +142,7 @@ public class Postpone extends QuartzJobBean {
         JSONObject checkJson = queryCheckRecords(httpClient, cookieStore, cookieMap, cloudInfo.getBusUri(), ukLog);
 
         return processServerStatus(status, statusJson, checkJson, ukLog, uKey, type,
-                userInfo.get("blogUrl"), mailUtil);
+                userInfo.get("blogUrl"));
     }
 
     private JSONObject executeLoginRequest(HttpClient httpClient, BasicCookieStore cookieStore,
@@ -227,17 +215,17 @@ public class Postpone extends QuartzJobBean {
 
     private String processServerStatus(String status, JSONObject statusJson, JSONObject checkJson,
                                        String ukLog, String uKey, String type,
-                                       String blogUrl, MailUtil mailUtil) throws Exception {
+                                       String blogUrl) throws Exception {
 
         switch (status) {
             case "1":
-                CommonCode.checkCheckStatus(checkJson, ukLog, blogUrl, mailUtil);
+                CommonCode.checkCheckStatus(checkJson, ukLog, blogUrl);
                 log.info("{}已到审核期", ukLog);
                 break;
 
             case "0":
                 // 未到审核期
-                CommonCode.checkCheckStatus(checkJson, ukLog, blogUrl, mailUtil);
+                CommonCode.checkCheckStatus(checkJson, ukLog, blogUrl);
                 String nextTime = JSONUtils.getString(JSONUtils.getObject(statusJson, CloudDataKey.STATUS_DATA), CloudDataKey.NEXT_TIME);
 
                 Map<String, String> userInfo = loadUserInfo(uKey);
@@ -260,15 +248,13 @@ public class Postpone extends QuartzJobBean {
      */
     private void executeDelayProcess(HttpClient httpClient, BasicCookieStore cookieStore,
                                      Map<String, String> cookieMap,
-                                     MailUtil mailUtil, CloudInfo cloudInfo,
+                                     CloudInfo cloudInfo,
                                      String ukLog, String username, String cloudName) throws IOException {
-
-        mailUtil.sendMail(ukLog + "已到延期时间", ukLog + "开始执行延期程序...");
 
         log.info("{}开始提交延期（固定网址 + 固定图片）", ukLog);
         File screenshotFile = new File(ResourceAbPath.YANQI_PIC_ABPATH);
         String response = submitBlogInfo(httpClient, cookieStore, cookieMap, cloudInfo, screenshotFile, FIXED_BLOG_URL, ukLog);
-        handleSubmissionResult(response, cloudName, username, mailUtil, ukLog);
+        handleSubmissionResult(response, cloudName, username, ukLog);
     }
 
     private String submitBlogInfo(HttpClient httpClient, BasicCookieStore cookieStore,
@@ -288,7 +274,7 @@ public class Postpone extends QuartzJobBean {
     }
 
     private void handleSubmissionResult(String response, String cloudName,
-                                        String username, MailUtil mailUtil, String ukLog) {
+                                        String username, String ukLog) {
 
         JSONObject json = JSONUtils.parseObject(response);
         log.info("{}提交延期记录返回结果：{}", ukLog, json);
@@ -297,11 +283,10 @@ public class Postpone extends QuartzJobBean {
             log.info("{}提交延期记录成功", ukLog);
         } else {
             log.error("{}提交延期记录失败", ukLog);
-            mailUtil.sendMail(cloudName + "账号:" + username + "发送延期博客失败", json.toString());
         }
     }
 
-    private void handleException(Map<String, String> serverInfo, Exception e, MailUtil mailUtil) {
+    private void handleException(Map<String, String> serverInfo, Exception e) {
         String username = serverInfo.get(Constans.CLOUD_USERNAME);
         String type = serverInfo.get(Constans.CLOUD_TYPE);
         CloudInfo cloudInfo = CloudInfo.getCloudInfo(type);
@@ -310,10 +295,8 @@ public class Postpone extends QuartzJobBean {
             String cloudName = cloudInfo.getCloudName();
             String ukLog = CommonCode.getUKLog(username, cloudName);
             log.error("{}延期过程出错", ukLog, e);
-            mailUtil.sendMail(cloudName + "账号：" + username + ",延期过程出错", e.getMessage());
         } else {
             log.error("处理服务器配置时出错：{}", serverInfo, e);
-            mailUtil.sendMail("服务器配置错误", "无法获取云服务信息：" + serverInfo);
         }
     }
 }
