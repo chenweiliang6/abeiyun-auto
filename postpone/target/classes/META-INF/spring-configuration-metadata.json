@@ -1,0 +1,25 @@
+{
+  "groups": [
+    {
+      "name": "",
+      "type": "com.ff.postpone.config.SchedulerConfig",
+      "sourceType": "com.ff.postpone.config.SchedulerConfig"
+    },
+    {
+      "name": "",
+      "type": "com.ff.postpone.constant.Profile",
+      "sourceType": "com.ff.postpone.constant.Profile"
+    }
+  ],
+  "properties": [
+    {
+      "name": "application-context",
+      "type": "org.springframework.context.ApplicationContext",
+      "sourceType": "com.ff.postpone.config.SchedulerConfig"
+    }
+  ],
+  "hints": [],
+  "ignored": {
+    "properties": []
+  }
+}
