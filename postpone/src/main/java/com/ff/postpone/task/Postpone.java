@@ -31,7 +31,7 @@ public class Postpone extends QuartzJobBean {
      * 延期固定网址（掘金软文地址），提交时作为 url 文本字段传入阿贝云 renew.php。
      * 代码层不对该 url 发 GET 校验，固定值即可。
      */
-    private static final String FIXED_BLOG_URL = "https://juejin.cn/post/7444006501285036058";
+    private static final String FIXED_BLOG_URL = "https://juejin.cn/post/7353561211512078345?searchId=20260920150657DBCC39899B0D5D0B8876";
 
     @Override
     protected void executeInternal(JobExecutionContext context) throws JobExecutionException {
