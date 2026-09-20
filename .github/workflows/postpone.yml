@@ -6,9 +6,9 @@ name: postpone-cloud
 #   GitHub Actions 的 schedule.cron 没有“年”、也无法跨月严格表达“每 5 天”，
 #   所以这里让 workflow 每天北京时间 11:00（= UTC 03:00）触发，
 #   再由第一个 step 用日期脚本判断“今天与起始日(START_DATE)的天数差是否为 5 的整数倍”，
-#   是才真正执行续期，否则静默退出。这样起始日起严格每 5 天一次（7/21, 7/26, 7/31, 8/5, …）。
+#   是才真正执行续期，否则静默退出。这样起始日起严格每 5 天一次（9/23, 9/28, 10/3, 10/8, …）。
 #
-#   起始日 : 2026-07-21（北京时间）
+#   起始日 : 2026-09-23（北京时间）
 #   执行点 : 每天北京 11:00 触发；仅差值 % 5 == 0 当天执行
 #   schedule 仅在默认分支生效、且 GitHub 不保证准时（高峰可能延迟数十分钟），故保留 workflow_dispatch 手动补跑/验证。
 #
@@ -35,9 +35,9 @@ jobs:
       # 手动 workflow_dispatch 触发时 GITHUB_EVENT_NAME=workflow_dispatch，直接放行。
       - name: 日期门控（从起始日起每 5 天）
         run: |
-          START_DATE="2026-07-21"
+          START_DATE="2026-09-23"
           # GitHub schedule 触发时间用 UTC；这里按北京时间(UTC+8)计算“今天”，
-          # 让“7/21 北京 11:00 触发时”确实落在 7/21 当天。
+          # 让“9/23 北京 11:00 触发时”确实落在 9/23 当天。
           TZ_OFFSET_HOURS=8
           TODAY_BJ=$(TZ="Asia/Shanghai" date +%Y-%m-%d)
           echo "起始日: $START_DATE"
