@@ -70,7 +70,7 @@ public class CloudPostParams {
         if (cloudInfo == CloudInfo.ABEI) {
             meb.addBinaryBody("yanqi_img", file);
         } else {
-            meb.addBinaryBody("yanqi_img", file, ContentType.IMAGE_PNG, "postpone.png");
+            meb.addBinaryBody("yanqi_img", file, ContentType.IMAGE_PNG, file.getName());
         }
 
         meb.setCharset(StandardCharsets.UTF_8);

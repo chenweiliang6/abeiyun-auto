@@ -27,12 +27,6 @@ public class Postpone extends QuartzJobBean {
 
     private static final Logger log = LoggerFactory.getLogger(Postpone.class);
 
-    /**
-     * 延期固定网址（掘金软文地址），提交时作为 url 文本字段传入阿贝云 renew.php。
-     * 代码层不对该 url 发 GET 校验，固定值即可。
-     */
-    private static final String FIXED_BLOG_URL = "https://juejin.cn/post/7353561211512078345?searchId=20260920150657DBCC39899B0D5D0B8876";
-
     @Override
     protected void executeInternal(JobExecutionContext context) throws JobExecutionException {
         postpone();
@@ -243,7 +237,7 @@ public class Postpone extends QuartzJobBean {
     }
 
     /**
-     * 执行延期：用固定掘金网址 + 仓库内固定图片直接提交 renew.php。
+     * 执行延期：按日期轮换选取一组「软文链接 + 对应截图」，直接提交 renew.php。
      * 不再发布/等待/截图/删除博客。
      */
     private void executeDelayProcess(HttpClient httpClient, BasicCookieStore cookieStore,
@@ -251,9 +245,15 @@ public class Postpone extends QuartzJobBean {
                                      CloudInfo cloudInfo,
                                      String ukLog, String username, String cloudName) throws IOException {
 
-        log.info("{}开始提交延期（固定网址 + 固定图片）", ukLog);
-        File screenshotFile = new File(ResourceAbPath.YANQI_PIC_ABPATH);
-        String response = submitBlogInfo(httpClient, cookieStore, cookieMap, cloudInfo, screenshotFile, FIXED_BLOG_URL, ukLog);
+        BlogArticle article = BlogArticle.pickToday();
+        String picAbPath = ResourceAbPath.PIC_ABPATHS.get(article.getPicPath());
+        File screenshotFile = new File(picAbPath);
+
+        log.info("{}开始提交延期（文章:{}，配图:{}）", ukLog, article.getUrl(), screenshotFile.getName());
+        if (!screenshotFile.exists()) {
+            log.warn("{}配图不存在:{}", ukLog, picAbPath);
+        }
+        String response = submitBlogInfo(httpClient, cookieStore, cookieMap, cloudInfo, screenshotFile, article.getUrl(), ukLog);
         handleSubmissionResult(response, cloudName, username, ukLog);
     }
 

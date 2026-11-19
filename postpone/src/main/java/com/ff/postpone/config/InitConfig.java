@@ -1,5 +1,6 @@
 package com.ff.postpone.config;
 
+import com.ff.postpone.constant.BlogArticle;
 import com.ff.postpone.constant.Profile;
 import com.ff.postpone.constant.ResourceAbPath;
 import com.ff.postpone.constant.ResourcePath;
@@ -43,7 +44,7 @@ public class InitConfig implements CommandLineRunner {
         String osName = System.getProperty("os.name").toLowerCase();
         log.info("======================================项目初始化开始======================================");
 
-        // oneshot 模式不需要 phantomjs（固定图提交，不走截图），跳过解压与字体安装以节省运行时间与磁盘
+        // oneshot 模式不需要 phantomjs（直接提交仓库内的成品截图，不走截图），跳过解压与字体安装以节省运行时间与磁盘
         if (!oneshot && StringUtil.isEmpty(Profile.PJ_EXEC)) {
             log.info("phantomjs.7z 压缩文件提取...");
             String resource7zPath;
@@ -87,10 +88,20 @@ public class InitConfig implements CommandLineRunner {
             FileUtil.copyResourceToFile(ResourcePath.PIC_JS_PATH, jsFIle);
             ResourceAbPath.PIC_JS_ABPATH = jsFIle.getAbsolutePath();
 
-            log.info("延期固定截图文件提取...");
-            File yanqiPic = new File(Profile.RESOURCE_TEMP_FILEPATH + ResourcePath.YANQI_PIC_PATH);
-            FileUtil.copyResourceToFile(ResourcePath.YANQI_PIC_PATH, yanqiPic);
-            ResourceAbPath.YANQI_PIC_ABPATH = yanqiPic.getAbsolutePath();
+            log.info("延期软文截图文件提取...");
+            for (BlogArticle article : BlogArticle.values()) {
+                String picPath = article.getPicPath();
+                File picFile = new File(Profile.RESOURCE_TEMP_FILEPATH + picPath);
+                // 图片每次强制覆盖：临时目录可能残留旧图，避免上传到过期截图。
+                // （注意不能改 FileUtil.copyResourceToFile 的"已存在不覆盖"语义，
+                //  它同时用于 application-permanent.yml，覆盖会清掉持久化的 userInfos）
+                if (picFile.exists()) {
+                    picFile.delete();
+                }
+                FileUtil.copyResourceToFile(picPath, picFile);
+                ResourceAbPath.PIC_ABPATHS.put(picPath, picFile.getAbsolutePath());
+                log.info("  {} -> {}", picPath, picFile.getAbsolutePath());
+            }
 
             log.info("持久化文件提取...");
             File permanentFile = new File(Profile.RESOURCE_TEMP_FILEPATH + ResourcePath.PERMANENT_PATH);

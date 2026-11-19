@@ -39,6 +39,11 @@ public enum CloudInfo {
     }
 
     public static CloudInfo getCloudInfo(String type){
+        // type 可能为 null（配置文件 / CI secrets 留空），此处不能省 null 判断，
+        // 否则会在 equals 处抛 NPE，导致未配置的服务器无法走"未启用，已跳过"分支。
+        if (type == null) {
+            return null;
+        }
         for (CloudInfo cloudInfo : values()) {
             if(type.equals(cloudInfo.type)){
                 return cloudInfo;

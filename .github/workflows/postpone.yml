@@ -1,6 +1,10 @@
 name: postpone-cloud
 
-# 阿贝云免费服务器自动续期（简化版）—— 从起始日起每 5 天用固定掘金网址 + 仓库内固定图片提交
+# 阿贝云免费服务器自动续期（简化版）—— 从起始日起每 5 天提交一组「软文链接 + 对应截图」
+#
+#   软文素材：共 4 组（贴吧 / 知乎 / CSDN / 掘金），定义在 BlogArticle 枚举，
+#             图片在 src/main/resources/static/{tieba,zhihu,csdn,juejin}.png。
+#             按北京时间 epochDay % 4 轮换；因执行间隔 5 天（5 % 4 == 1），每次运行必换一组。
 #
 # 实现说明：
 #   GitHub Actions 的 schedule.cron 没有“年”、也无法跨月严格表达“每 5 天”，

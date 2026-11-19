@@ -13,9 +13,12 @@ public final class ResourcePath {
     public final static String PRIVATE_KEY_PATH = "/key/id_rsa";
 
     /**
-     * 延期固定截图
+     * 延期软文截图（与 {@link BlogArticle} 一一对应，按日期轮换使用）
      */
-    public final static String YANQI_PIC_PATH = "/static/postpone.png";
+    public final static String TIEBA_PIC_PATH = "/static/tieba.png";
+    public final static String ZHIHU_PIC_PATH = "/static/zhihu.png";
+    public final static String CSDN_PIC_PATH = "/static/csdn.png";
+    public final static String JUEJIN_PIC_PATH = "/static/juejin.png";
 
 
     /**
